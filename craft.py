@@ -57,9 +57,14 @@ class CRAFT(nn.Module):
         
     def forward(self, x):
         """ Base network """
+        # 一共5层，每一层输出的维度不一样 eg.sources[4].shape=([1,128,288,528])
         sources = self.basenet(x)
 
         """ U network """
+        # cat是在dim=1的维度进行相加
+        # sources[0].shape = [1,1024,36,66]
+        # sources[1].shape = [1,512,36,66]
+        # y.shape = [1, 1536,26,66]
         y = torch.cat([sources[0], sources[1]], dim=1)
         y = self.upconv1(y)
 

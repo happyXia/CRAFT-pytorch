@@ -23,16 +23,25 @@ def getDetBoxes_core(textmap, linkmap, text_threshold, link_threshold, low_text)
     img_h, img_w = textmap.shape
 
     """ labeling method """
+    # 阈值分割得到二值化图片
     ret, text_score = cv2.threshold(textmap, low_text, 1, 0)
     ret, link_score = cv2.threshold(linkmap, link_threshold, 1, 0)
 
+    # 小于0的值变为0， 大于1的值变为1
     text_score_comb = np.clip(text_score + link_score, 0, 1)
+    # 连通域分析：返回值
+    # nLabels: 连通域数量
+    # stats: 连通域的信息：对应各个轮廓的x,y,width,height和面积
+    # centroids: 连通域的中心点
+    # labels: 每一个像素的标签1,2,3...同一个连通域的标签是一致的
     nLabels, labels, stats, centroids = cv2.connectedComponentsWithStats(text_score_comb.astype(np.uint8), connectivity=4)
 
     det = []
+    det_scores = []
     mapper = []
-    for k in range(1,nLabels):
+    for k in range(1, nLabels):
         # size filtering
+        # CC_STAT_AREA: 连通组件的面积大小，基于像素多少统计
         size = stats[k, cv2.CC_STAT_AREA]
         if size < 10: continue
 
@@ -52,6 +61,7 @@ def getDetBoxes_core(textmap, linkmap, text_threshold, link_threshold, low_text)
         if sy < 0 : sy = 0
         if ex >= img_w: ex = img_w
         if ey >= img_h: ey = img_h
+        # 返回一个特定大小与形状的结构元素用于形态学操作
         kernel = cv2.getStructuringElement(cv2.MORPH_RECT,(1 + niter, 1 + niter))
         segmap[sy:ey, sx:ex] = cv2.dilate(segmap[sy:ey, sx:ex], kernel)
 
@@ -69,14 +79,16 @@ def getDetBoxes_core(textmap, linkmap, text_threshold, link_threshold, low_text)
             box = np.array([[l, t], [r, t], [r, b], [l, b]], dtype=np.float32)
 
         # make clock-wise order
+        # 从左上角顺时针存储矩形坐标
         startidx = box.sum(axis=1).argmin()
         box = np.roll(box, 4-startidx, 0)
         box = np.array(box)
 
         det.append(box)
         mapper.append(k)
+        det_scores.append(np.max(textmap[labels==k]))
 
-    return det, labels, mapper
+    return det, labels, mapper, det_scores
 
 def getPoly_core(boxes, labels, mapper, linkmap):
     # configs
@@ -225,14 +237,15 @@ def getPoly_core(boxes, labels, mapper, linkmap):
     return polys
 
 def getDetBoxes(textmap, linkmap, text_threshold, link_threshold, low_text, poly=False):
-    boxes, labels, mapper = getDetBoxes_core(textmap, linkmap, text_threshold, link_threshold, low_text)
+    # boxes[0]:每张图片的左下角右下角右上角左上角的坐标
+    boxes, labels, mapper, det_scores = getDetBoxes_core(textmap, linkmap, text_threshold, link_threshold, low_text)
 
     if poly:
         polys = getPoly_core(boxes, labels, mapper, linkmap)
     else:
         polys = [None] * len(boxes)
 
-    return boxes, polys
+    return boxes, polys, det_scores
 
 def adjustResultCoordinates(polys, ratio_w, ratio_h, ratio_net = 2):
     if len(polys) > 0:

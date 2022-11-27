@@ -8,6 +8,7 @@ import numpy as np
 from skimage import io
 import cv2
 
+
 def loadImage(img_file):
     img = io.imread(img_file)           # RGB order
     if img.shape[0] == 2: img = img[0]
@@ -41,6 +42,7 @@ def resize_aspect_ratio(img, square_size, interpolation, mag_ratio=1):
     target_size = mag_ratio * max(height, width)
 
     # set original image size
+    # 取较小的值
     if target_size > square_size:
         target_size = square_size
     
@@ -68,3 +70,6 @@ def cvt2HeatmapImg(img):
     img = (np.clip(img, 0, 1) * 255).astype(np.uint8)
     img = cv2.applyColorMap(img, cv2.COLORMAP_JET)
     return img
+
+# Load the image
+# image = imgproc.loadImage(image_path)
